@@ -2,8 +2,6 @@
 __pycache__/
 *.py[cod]
 source/
-data/
 tables/
 figures/
-results_summary.json
-results_summary.md
+prototypes/

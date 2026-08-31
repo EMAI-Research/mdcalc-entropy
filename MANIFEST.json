@@ -1,0 +1,127 @@
+[
+  {
+    "path": ".gitignore",
+    "size_bytes": 67,
+    "sha256": "a2859ce254dd2704f6db1db38a0be21081ff60490ee536f24871b98eadeb088a"
+  },
+  {
+    "path": "analyze.py",
+    "size_bytes": 107066,
+    "sha256": "ce4870ee0e04f6d65afdbab100c8858cf82faed2544cc6491083c615540de7e7"
+  },
+  {
+    "path": "bmj.mplstyle",
+    "size_bytes": 1229,
+    "sha256": "b8f1d6d55937e3c208389d2320f0d9ee67f5e9ed90d2f3012e74a2f0e8cc3642"
+  },
+  {
+    "path": "build_result_support.py",
+    "size_bytes": 6209,
+    "sha256": "7228e31af3a5f76e1f1a89368bb6b798ba9325d5352a4139418078858541fcad"
+  },
+  {
+    "path": "CHANGELOG.md",
+    "size_bytes": 361,
+    "sha256": "dab41b9675c4884f0c03230984f757550a400f51525de4212024db95d4b03f2a"
+  },
+  {
+    "path": "DATA_DICTIONARY.md",
+    "size_bytes": 2172,
+    "sha256": "60e5d7b0e5648b8403e2ebd733e95b3782be18709b9ec52786528cf135a20acd"
+  },
+  {
+    "path": "data/mdcalc_catalog.csv",
+    "size_bytes": 278077,
+    "sha256": "dae218e6b5a67a160f14ab0a3a0d9f9ffacd05e283759e49ef0da0522d250084"
+  },
+  {
+    "path": "data/mdcalc_evaluation_audit.csv",
+    "size_bytes": 636051,
+    "sha256": "34eb8c3b67a2f6981c59c40ea69810dfa01dfd83da77b88236f875f625ccad50"
+  },
+  {
+    "path": "data/mdcalc_evaluations_expanded.csv",
+    "size_bytes": 619352,
+    "sha256": "64c4b72165b364a63f4e025651a5f98beab872d93a5e5186621beb32d7cba6c5"
+  },
+  {
+    "path": "data/mdcalc_evaluations_primary.csv",
+    "size_bytes": 612074,
+    "sha256": "2fbfdaab1feea6fd126e96c309b43381638acc0ebb967a0293ec5221f50e5e7f"
+  },
+  {
+    "path": "decision_relevance_results.json",
+    "size_bytes": 24133,
+    "sha256": "06195bcec3b97ad84c2651c260d53f908a1c5d5da06d77eeb5866988d619a18b"
+  },
+  {
+    "path": "decision_relevance.py",
+    "size_bytes": 8692,
+    "sha256": "161dc7f0412e8840271ea57bb3d91002e02a20e0914ba440019e406ce7bd565b"
+  },
+  {
+    "path": "docs/plans/2026-08-31-public-reproducibility-release-plan.md",
+    "size_bytes": 576,
+    "sha256": "7742a00d35d6207d15083ec16a486181c37a64f4bc3f7096c9c7ef2e4d7e0124"
+  },
+  {
+    "path": "figure5_ruleout_support.py",
+    "size_bytes": 6198,
+    "sha256": "6d0cd19e77d42c1860acb40a5e2b8de1c4a3551498ffc669e56c94c8c9b6d959"
+  },
+  {
+    "path": "LICENSE.md",
+    "size_bytes": 2071,
+    "sha256": "5bc3d3d849c003403ef8f2f71d56fa7f2b31a3e36c987f5519e9463877643fbd"
+  },
+  {
+    "path": "LICENSING_STATUS.md",
+    "size_bytes": 796,
+    "sha256": "d848032dfd374cd1a97c4b70a12a5745eaa8b784f4c1e9ee4ff35543cb63e1c9"
+  },
+  {
+    "path": "README.md",
+    "size_bytes": 2535,
+    "sha256": "cdd4f291b8a725d867050ac79c3290895b82b223679757b8a7be0d69dc2ba1ff"
+  },
+  {
+    "path": "redesign_figures.py",
+    "size_bytes": 21199,
+    "sha256": "a44841fdb2d28a7668f5f577933b3ad100df924ee189f583f9ea44c035948417"
+  },
+  {
+    "path": "requirements.txt",
+    "size_bytes": 81,
+    "sha256": "c8364e5dfb7d0cb3365c06955926072d60b0a3347fa61cbacd5fbcb8e39e15a6"
+  },
+  {
+    "path": "result_support_summary.json",
+    "size_bytes": 826,
+    "sha256": "ef2285d8dbef8eb3409f934511e127415825c5bed40fe6b1652422ad9bbdb794"
+  },
+  {
+    "path": "results_summary.json",
+    "size_bytes": 21448,
+    "sha256": "0c76dee5ed154e3a95ca547d8e0d9b2b4437df5a02810645ab025dca278c617c"
+  },
+  {
+    "path": "results_summary.md",
+    "size_bytes": 1963,
+    "sha256": "80585e49df2bc6e872bcac04955097f874b7c9c7c403c5ca889d535e6801a1c1"
+  },
+  {
+    "path": "rulein_support_evaluations.csv",
+    "size_bytes": 277599,
+    "sha256": "5988a78759b545554edf3f8348b56cd1a4e0d16be2dba7f322c078faa3ecbf09"
+  },
+  {
+    "path": "ruleout_support_evaluations.csv",
+    "size_bytes": 277636,
+    "sha256": "c68f360cb56ac812b32ebe1b92f7745865a1ab5d4f299e5e010076fe3a3671c6"
+  },
+  {
+    "path": "VERSION",
+    "size_bytes": 6,
+    "sha256": "1f930dd1f133c1f97a94fe3acb8db34372cf4c01ffdb2b3ff4ca72f9494121e9"
+  }
+]

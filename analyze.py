@@ -8,6 +8,9 @@ import re
 import sys
 from pathlib import Path
 
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -17,9 +20,12 @@ from scipy import stats
 HERE = Path(__file__).resolve().parent
 SOURCE = HERE / "source" / "mdcalc_entropy_source_v0.2.0.xlsx"
 EXPECTED_SHA256 = "02348f2e95039be35943e135d27b12010ba382d589d03623a497baef35dbc514"
-BLUE, CYAN, GREEN, AMBER, SLATE = "#1f49b6", "#0d67ff", "#10b981", "#f59e0b", "#334155"
-NEUTRAL, ACCENT, HIGHLIGHT, CONTINUOUS_CMAP = "#94a3b8", BLUE, GREEN, "viridis"
-plt.rcParams["svg.hashsalt"] = "mdcalc-entropy-bmj-v0.5.0"
+BMJ_STYLE = HERE / "bmj.mplstyle"
+INK, MUTED, GRID, LIGHT, WHITE = "#17212B", "#58636D", "#D9E0E5", "#F5F7F9", "#FFFFFF"
+COLOURS = ("#0072B2", "#009E73", "#CC79A7", "#E69F00")
+GRAYS = ("#111111", "#3D3D3D", "#696969", "#969696")
+DOUBLE_COLUMN_MM, MM_PER_INCH, FIGURE_DPI = 180.0, 25.4, 600
+plt.rcParams["svg.hashsalt"] = "mdcalc-entropy-bmj-v0.14.3"
 
 
 ALIASES: list[tuple[str, int | None, str]] = [
@@ -74,18 +80,18 @@ MAIN_ATLAS_ROWS = [
     {
         "source_index": 241,
         "block": "Stopping safely",
-        "label": "Pulmonary embolism — PERC",
-        "context": "PERC negative after low-risk clinical selection; pulmonary embolism",
-        "reading": "The negative result carries most information, matching the rule's purpose after low-risk clinical selection.",
-        "reference": 16,
+        "label": "Suspected pulmonary embolism — PERC",
+        "context": "Low clinical suspicion (<15%) and PERC negative; venous thromboembolism or death within 45 days",
+        "reading": "The combined negative result lowered risk to 1.0%, below the prespecified 2.0% validation target, despite modest average information.",
+        "reference": 17,
     },
     {
         "source_index": 65,
         "block": "Stopping safely",
         "label": "Minor head injury — Canadian CT Head Rule",
         "context": "CCHR positive criteria; clinically important brain injury",
-        "reading": "Perfect sensitivity here reaches an informative negative result in many more patients than PERC.",
-        "reference": 17,
+        "reading": "The evaluated cohort had no observed clinically important brain injury after a negative classification.",
+        "reference": 18,
     },
     {
         "source_index": 145,
@@ -93,7 +99,7 @@ MAIN_ATLAS_ROWS = [
         "label": "Upper gastrointestinal bleeding — Glasgow-Blatchford score",
         "context": "GBS >1; hospital intervention or death within 30 days",
         "reading": "Negative-result dominance also appears when the outcome is common, not only when it is rare.",
-        "reference": 18,
+        "reference": 19,
     },
     {
         "source_index": 97,
@@ -101,7 +107,7 @@ MAIN_ATLAS_ROWS = [
         "label": "Community acquired pneumonia — CRB-65",
         "context": "CRB-65 ≥1; 30-day mortality",
         "reading": "High sensitivity with very low specificity leaves little average information because few patients test negative.",
-        "reference": 19,
+        "reference": 20,
     },
     {
         "source_index": 101,
@@ -109,15 +115,15 @@ MAIN_ATLAS_ROWS = [
         "label": "Community acquired pneumonia — CURB-65",
         "context": "CURB-65 ≥2; 30-day mortality",
         "reading": "In the same cohort, added specificity more than doubles information while negative results remain dominant.",
-        "reference": 19,
+        "reference": 20,
     },
     {
         "source_index": 473,
         "block": "Same HEART score, different thresholds",
         "label": "Chest pain — HEART rule-out threshold",
         "context": "HEART ≥4; six-week major adverse cardiac events",
-        "reading": "At the rule-out threshold, the negative classification supplies most of the information.",
-        "reference": 20,
+        "reading": "At the rule-out threshold, the negative result supplies most of the information.",
+        "reference": 21,
     },
     {
         "source_index": 474,
@@ -125,7 +131,7 @@ MAIN_ATLAS_ROWS = [
         "label": "Chest pain — HEART rule-in threshold",
         "context": "HEART >6; six-week major adverse cardiac events",
         "reading": "Moving the threshold reverses the pattern: the positive result now carries most of the information.",
-        "reference": 20,
+        "reference": 21,
     },
 ]
 
@@ -192,7 +198,7 @@ SUPPLEMENTAL_ATLAS_ROWS = [
         "block": "Additional rule-out and early-disposition tools",
         "label": "Acute headache — Ottawa SAH Rule",
         "context": "Any Ottawa SAH criterion; subarachnoid haemorrhage",
-        "reading": "Perfect sensitivity here removes modest average uncertainty because informative negative classifications are uncommon.",
+        "reading": "Perfect sensitivity here removes modest average uncertainty because informative negative results are uncommon.",
     },
     {
         "source_index": 234,
@@ -387,16 +393,34 @@ def confidence_group(value: object) -> str:
 def evidence_group(value: object) -> str:
     text = normalize(value)
     if not text or text == "nan":
-        return "Legacy/unclassified"
-    if "metric reconstructed" in text or "rounded metrics" in text:
+        return "Legacy/no recorded source"
+    if (
+        "metric reconstructed" in text
+        or "rounded metrics" in text
+        or "literature" in text
+        or "meta analysis" in text
+    ):
         return "Metric-reconstructed"
     if "sens spec" in text:
         return "Reported sensitivity/specificity"
-    if "event counts" in text or "2x2" in text or text == "v1 raw":
+    if (
+        "event counts" in text
+        or "validation counts" in text
+        or "2x2" in text
+        or text == "v1 raw"
+    ):
         return "Count-based"
-    if "literature" in text or "meta analysis" in text:
-        return "Literature-derived"
     return "Other"
+
+
+def sampling_design_group(value: object) -> str:
+    """Classify only study designs stated explicitly in the recorded source description."""
+    text = normalize(value)
+    if re.search(r"\b(case control|two gate)\b", text):
+        return "Case-control/two-gate"
+    if re.search(r"\b(cohort|consecutive)\b", text):
+        return "Cohort/consecutive"
+    return "Unclear"
 
 
 def match_catalog(label: str, catalog: pd.DataFrame) -> tuple[float | None, str, str]:
@@ -746,11 +770,9 @@ def catalog_representation_table(catalog: pd.DataFrame, primary: pd.DataFrame) -
 def pick_one_per_calculator(frame: pd.DataFrame) -> pd.DataFrame:
     priority = {
         "Count-based": 0,
-        "Literature-derived": 1,
-        "Reported sensitivity/specificity": 2,
-        "Metric-reconstructed": 3,
-        "Legacy/unclassified": 4,
-        "Other": 5,
+        "Reported sensitivity/specificity": 1,
+        "Metric-reconstructed": 2,
+        "Legacy/no recorded source": 3,
     }
     ranked = frame.assign(
         evidence_priority=frame["evidence_group"].map(priority).fillna(9),
@@ -769,6 +791,9 @@ def sensitivity_table(primary: pd.DataFrame, expanded: pd.DataFrame) -> pd.DataF
             primary["confidence_group"].isin(["High", "Moderate-high"])
         ],
         "Evaluations based on reported counts": primary[primary["evidence_group"].eq("Count-based")],
+        "Excluding explicitly case-control/two-gate sources": primary[
+            ~primary["sampling_design"].eq("Case-control/two-gate")
+        ],
     }
     rows = []
     for name, data in scenarios.items():
@@ -788,6 +813,73 @@ def sensitivity_table(primary: pd.DataFrame, expanded: pd.DataFrame) -> pd.DataF
             }
         )
     return pd.DataFrame(rows)
+
+
+def sampling_design_table(primary: pd.DataFrame) -> pd.DataFrame:
+    rows = []
+    for label in ["Cohort/consecutive", "Case-control/two-gate", "Unclear"]:
+        data = primary[primary["sampling_design"].eq(label)]
+        rows.append(
+            {
+                "sampling_design": label,
+                "evaluations": len(data),
+                "calculators": data["calculator_key"].nunique(),
+                "median_bits": data["entropy_reduction_bits"].median(),
+                "median_percent": data["entropy_removed_percent"].median(),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def evidence_audit_table(primary: pd.DataFrame) -> pd.DataFrame:
+    total = len(primary)
+    present = lambda column: primary[column].fillna("").astype(str).str.strip().ne("")
+    reported_n = primary["reported_sample_size"].notna()
+    contribution_matches = np.isclose(
+        primary["positive_information_bits"] + primary["negative_information_bits"],
+        primary["entropy_reduction_bits"],
+        atol=1e-10,
+    )
+    rows = [
+        ("Count-based source evidence", primary["evidence_group"].eq("Count-based"), total),
+        (
+            "High or moderate-high confidence label",
+            primary["confidence_group"].isin(["High", "Moderate-high"]),
+            total,
+        ),
+        ("Study citation recorded", present("study"), total),
+        ("Threshold description recorded", present("cutoff"), total),
+        (
+            "Complete, non-negative 2x2 cells",
+            primary[["tp", "fp", "fn", "tn"]].notna().all(axis=1)
+            & primary[["tp", "fp", "fn", "tn"]].ge(0).all(axis=1),
+            total,
+        ),
+        (
+            "Reported sample size within one of 2x2 total",
+            (primary["reported_sample_size"] - primary["count_total"]).abs().le(1)
+            & reported_n,
+            int(reported_n.sum()),
+        ),
+        (
+            "Finite information estimates",
+            np.isfinite(primary["entropy_reduction_bits"])
+            & np.isfinite(primary["entropy_removed_percent"]),
+            total,
+        ),
+        ("Positive and negative contributions reproduce total information", contribution_matches, total),
+    ]
+    return pd.DataFrame(
+        [
+            {
+                "audit_item": label,
+                "evaluations_meeting": int(np.asarray(mask).sum()),
+                "evaluations_assessed": assessed,
+                "percent": 100 * np.asarray(mask).sum() / assessed,
+            }
+            for label, mask, assessed in rows
+        ]
+    )
 
 
 def sample_size_table(primary: pd.DataFrame) -> pd.DataFrame:
@@ -951,13 +1043,16 @@ def atlas_numeric_rows(primary: pd.DataFrame, metadata: list[dict[str, object]])
     return pd.DataFrame(rows)
 
 
-def illustrative_transport_rows() -> pd.DataFrame:
+def illustrative_comparison_rows() -> tuple[pd.DataFrame, pd.DataFrame]:
     counts = pd.DataFrame(
         [
             {"tp": 360, "fp": 240, "fn": 40, "tn": 360},
             {"tp": 36, "fp": 384, "fn": 4, "tn": 576},
+            {"tp": 950, "fp": 4050, "fn": 50, "tn": 4950},
+            {"tp": 750, "fp": 2250, "fn": 250, "tn": 6750},
+            {"tp": 550, "fp": 450, "fn": 450, "tn": 8550},
         ],
-        index=["Illustrative A", "Illustrative B"],
+        index=["Prevalence A", "Prevalence B", "J rule-out", "J balanced", "J rule-in"],
     )
     metrics = add_metrics(counts)
     metadata = [
@@ -974,6 +1069,27 @@ def illustrative_transport_rows() -> pd.DataFrame:
             "label": "Same illustrative threshold: 4% prevalence",
             "context": "Per 1000; sensitivity 90% and specificity 60%",
             "reading": "Lower starting risk cuts information per patient by 84.8% despite unchanged sensitivity and specificity.",
+        },
+        {
+            "block": "Same-prevalence, same-Youden experiment",
+            "source_index": "J rule-out",
+            "label": "Rule-out emphasis: 10% prevalence",
+            "context": "Per 10,000; sensitivity 95% and specificity 55%",
+            "reading": "The same J can concentrate information in negative results.",
+        },
+        {
+            "block": "Same-prevalence, same-Youden experiment",
+            "source_index": "J balanced",
+            "label": "Balanced accuracy: 10% prevalence",
+            "context": "Per 10,000; sensitivity 75% and specificity 75%",
+            "reading": "Balancing sensitivity and specificity changes both the amount and direction of information.",
+        },
+        {
+            "block": "Same-prevalence, same-Youden experiment",
+            "source_index": "J rule-in",
+            "label": "Rule-in emphasis: 10% prevalence",
+            "context": "Per 10,000; sensitivity 55% and specificity 95%",
+            "reading": "The same J can produce more information concentrated in positive results.",
         },
     ]
     rows = []
@@ -1010,20 +1126,32 @@ def illustrative_transport_rows() -> pd.DataFrame:
                 "reference": "",
             }
         )
-    result = pd.DataFrame(rows)
+    result = pd.DataFrame(rows).set_index("source_index", drop=False)
+    transport = result.loc[["Illustrative A", "Illustrative B"]].reset_index(drop=True)
+    youden = result.loc[["J rule-out", "J balanced", "J rule-in"]].reset_index(drop=True)
     invariant = ["sensitivity", "specificity", "lr_positive", "lr_negative", "youden_j"]
-    assert np.allclose(metrics.loc["Illustrative A", invariant], metrics.loc["Illustrative B", invariant])
+    assert np.allclose(metrics.loc["Prevalence A", invariant], metrics.loc["Prevalence B", invariant])
     assert not np.isclose(
-        metrics.loc["Illustrative A", "entropy_reduction_bits"],
-        metrics.loc["Illustrative B", "entropy_reduction_bits"],
+        metrics.loc["Prevalence A", "entropy_reduction_bits"],
+        metrics.loc["Prevalence B", "entropy_reduction_bits"],
     )
     decline = 100 * (
         1
-        - metrics.loc["Illustrative B", "entropy_reduction_bits"]
-        / metrics.loc["Illustrative A", "entropy_reduction_bits"]
+        - metrics.loc["Prevalence B", "entropy_reduction_bits"]
+        / metrics.loc["Prevalence A", "entropy_reduction_bits"]
     )
     assert np.isclose(decline, 84.8, atol=0.1)
-    return result
+    assert np.allclose(metrics.loc[["J rule-out", "J balanced", "J rule-in"], "prevalence"], 0.1)
+    assert np.allclose(metrics.loc[["J rule-out", "J balanced", "J rule-in"], "youden_j"], 0.5)
+    assert metrics.loc[["J rule-out", "J balanced", "J rule-in"], "entropy_reduction_bits"].nunique() == 3
+    assert list(
+        metrics.loc[["J rule-out", "J balanced", "J rule-in"], "information_contribution_pattern"]
+    ) == [
+        "Negative-result dominant",
+        "Balanced",
+        "Positive-result dominant",
+    ]
+    return transport, youden
 
 
 def format_atlas_lr(value: float) -> str:
@@ -1048,8 +1176,8 @@ def atlas_display_table(frame: pd.DataFrame) -> pd.DataFrame:
             if row["row_type"] == "Illustrative"
             else "See source ledger"
         )
-        positive_share = f"+ {row['positive_information_share_percent']:.1f}%"
-        negative_share = f"−{row['negative_information_share_percent']:.1f}%"
+        positive_share = f"T+ {row['positive_information_share_percent']:.1f}%"
+        negative_share = f"T− {row['negative_information_share_percent']:.1f}%"
         if row["positive_information_share_percent"] > 60:
             positive_share = f"**{positive_share}**"
         elif row["positive_information_share_percent"] < 40:
@@ -1112,17 +1240,19 @@ def clinical_atlas_source_ledger(
 
 def clinical_metric_atlas_tables(
     primary: pd.DataFrame,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     main_observed = atlas_numeric_rows(primary, MAIN_ATLAS_ROWS)
-    illustrative = illustrative_transport_rows()
+    prevalence_experiment, youden_experiment = illustrative_comparison_rows()
     supplemental_metadata = [*MAIN_ATLAS_ROWS, *SUPPLEMENTAL_ATLAS_ROWS]
     supplemental = atlas_numeric_rows(primary, supplemental_metadata)
     ledger = clinical_atlas_source_ledger(primary, supplemental_metadata)
 
     assert len(main_observed) == 7
     assert main_observed["row_type"].eq("Observed").all()
-    assert len(illustrative) == 2
-    assert illustrative["row_type"].eq("Illustrative").all()
+    assert len(prevalence_experiment) == 2
+    assert prevalence_experiment["row_type"].eq("Illustrative").all()
+    assert len(youden_experiment) == 3
+    assert youden_experiment["row_type"].eq("Illustrative").all()
     assert len(supplemental) == 24
     assert supplemental["source_index"].is_unique
     assert len(ledger) == 24
@@ -1137,7 +1267,7 @@ def clinical_metric_atlas_tables(
     heart = main_observed[main_observed["source_index"].isin([473, 474])]
     assert pneumonia["n"].nunique() == pneumonia["starting_risk_percent"].nunique() == 1
     assert heart["n"].nunique() == heart["starting_risk_percent"].nunique() == 1
-    return main_observed, illustrative, supplemental, ledger
+    return main_observed, prevalence_experiment, youden_experiment, supplemental, ledger
 
 
 def save_table_markdown(frame: pd.DataFrame, path: Path, digits: int = 3) -> None:
@@ -1148,23 +1278,100 @@ def save_table_markdown(frame: pd.DataFrame, path: Path, digits: int = 3) -> Non
     path.write_text("\n".join([header, divider, *rows, ""]), encoding="utf-8")
 
 
+def configure_figure_style(grayscale: bool) -> tuple[str, ...]:
+    plt.style.use("default")
+    plt.style.use(str(BMJ_STYLE))
+    text_colour = GRAYS[0] if grayscale else INK
+    axis_colour = GRAYS[1] if grayscale else MUTED
+    plt.rcParams.update(
+        {
+            "svg.hashsalt": "mdcalc-entropy-bmj-v0.14.3",
+            "text.color": text_colour,
+            "axes.labelcolor": text_colour,
+            "axes.edgecolor": axis_colour,
+            "xtick.color": axis_colour,
+            "ytick.color": axis_colour,
+        }
+    )
+    return GRAYS if grayscale else COLOURS
+
+
+def figure_size(height_mm: float) -> tuple[float, float]:
+    return DOUBLE_COLUMN_MM / MM_PER_INCH, height_mm / MM_PER_INCH
+
+
 def save_figure(fig: plt.Figure, stem: Path) -> None:
-    fig.savefig(stem.with_suffix(".png"), dpi=300, bbox_inches="tight", facecolor="white")
+    fig.savefig(
+        stem.with_suffix(".png"),
+        format="png",
+        dpi=FIGURE_DPI,
+        facecolor=WHITE,
+        edgecolor="none",
+        metadata={"Software": "MDCalc BMJ 0.14.3 deterministic figure builder"},
+    )
     fig.savefig(
         stem.with_suffix(".pdf"),
-        bbox_inches="tight",
-        facecolor="white",
-        metadata={"CreationDate": None, "ModDate": None},
+        format="pdf",
+        facecolor=WHITE,
+        edgecolor="none",
+        metadata={
+            "Title": stem.stem,
+            "Author": "MDCalc BMJ 0.14.3 deterministic figure builder",
+            "Creator": "analysis/analyze.py",
+            "CreationDate": None,
+            "ModDate": None,
+        },
     )
     svg = stem.with_suffix(".svg")
-    fig.savefig(svg, bbox_inches="tight", facecolor="white", metadata={"Date": None})
-    svg.write_text("\n".join(line.rstrip() for line in svg.read_text(encoding="utf-8").splitlines()) + "\n", encoding="utf-8")
+    fig.savefig(
+        svg,
+        format="svg",
+        facecolor=WHITE,
+        edgecolor="none",
+        metadata={"Title": stem.stem, "Creator": "analysis/analyze.py", "Date": "2026-08-29"},
+    )
+    svg.write_text(
+        "\n".join(line.rstrip() for line in svg.read_text(encoding="utf-8").splitlines()) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
     plt.close(fig)
 
 
-def label_panels(axes: np.ndarray) -> None:
-    for label, ax in zip("AB", axes):
-        ax.text(-0.10, 1.04, label, transform=ax.transAxes, fontsize=14, weight="bold", va="bottom")
+def deterministic_offsets(count: int, width: float = 0.28) -> np.ndarray:
+    """Return stable low-discrepancy offsets without a random-number generator."""
+
+    return (((np.arange(count, dtype=float) * 0.6180339887498949) % 1.0) - 0.5) * width
+
+
+def label_panel(ax: plt.Axes, label: str, title: str) -> None:
+    ax.set_title(f"{label}  {title}", loc="left", fontsize=8.5, weight="semibold", pad=6)
+
+
+def strip_interval(
+    ax: plt.Axes,
+    values: pd.Series | np.ndarray,
+    position: float,
+    colour: str,
+    *,
+    marker: str = "o",
+    width: float = 0.30,
+) -> None:
+    plotted = np.sort(np.asarray(values, dtype=float))
+    ax.scatter(
+        position + deterministic_offsets(len(plotted), width),
+        plotted,
+        s=7,
+        marker=marker,
+        color=colour,
+        alpha=0.22,
+        edgecolors="none",
+        zorder=2,
+    )
+    q1, median, q3 = np.quantile(plotted, [0.25, 0.50, 0.75])
+    ax.vlines(position, plotted.min(), plotted.max(), color=MUTED, lw=0.7, zorder=3)
+    ax.vlines(position, q1, q3, color=colour, lw=5.0, zorder=4)
+    ax.scatter(position, median, s=30, marker="D", color=INK, edgecolor=WHITE, linewidth=0.5, zorder=5)
 
 
 def make_figures(
@@ -1174,399 +1381,397 @@ def make_figures(
     specialty_comparison: pd.DataFrame,
     figure_dir: Path,
 ) -> None:
-    plt.rcParams.update({"font.family": "Arial", "axes.spines.top": False, "axes.spines.right": False})
-
-    fig, ax = plt.subplots(figsize=(12, 6))
-    ax.axis("off")
-    boxes = [
-        (0.02, str(flow["primary_evaluations"]), "binary\nevaluations"),
-        (0.27, str(flow["mapped_calculators"]), "catalogue calculators\nrepresented"),
-        (0.52, f"{primary['entropy_removed_percent'].median():.1f}%", "median uncertainty\nremoved"),
-        (
-            0.77,
-            f"{100 - primary.loc[purpose_mask(primary, 'Rule Out'), 'positive_information_share_percent'].median():.1f}%",
-            "rule-out information\nfrom negative results",
-        ),
-    ]
-    for x, number, label in boxes:
-        ax.add_patch(plt.Rectangle((x, 0.28), 0.20, 0.44, facecolor="#eff6ff", edgecolor=BLUE, lw=2))
-        ax.text(x + 0.10, 0.54, number, ha="center", va="center", fontsize=25, weight="bold", color=BLUE)
-        ax.text(x + 0.10, 0.39, label, ha="center", va="center", fontsize=11, color=SLATE, wrap=True)
-    for x in [0.22, 0.47, 0.72]:
-        ax.annotate("", xy=(x + 0.04, 0.50), xytext=(x, 0.50), arrowprops={"arrowstyle": "->", "lw": 2, "color": CYAN})
-    ax.text(0.5, 0.88, "Clinical calculators differ widely in information yield", ha="center", fontsize=20, weight="bold", color=SLATE)
-    ax.text(0.5, 0.12, "Calculators differed in both the amount and the clinical direction of information", ha="center", fontsize=12, color=SLATE)
-    save_figure(fig, figure_dir / "graphical_abstract")
-
-    included_blue, branch_grey, unrepresented_grey = ACCENT, "#64748b", "#E5E7EB"
-    fig, axes = plt.subplots(
-        1,
-        2,
-        figsize=(7.1, 3.6),
-        gridspec_kw={"width_ratios": [1.45, 1]},
-        constrained_layout=True,
-    )
-    for ax in axes:
-        ax.set(xlim=(0, 1), ylim=(0, 1))
-        ax.axis("off")
-
-    ax = axes[0]
-    ax.text(0.00, 0.98, "A", fontsize=13, weight="bold", va="top")
-    ax.text(0.08, 0.98, "Evidence selection (study-level evaluations)", fontsize=10, weight="bold", va="top")
-    boxes = [
-        (0.05, 0.80, 0.55, 0.12, "494 binary evaluation records\nwith TP, FP, FN, and TN", "#F8FAFC", included_blue),
-        (0.05, 0.59, 0.55, 0.12, "487 linked to the MDCalc catalogue", "#F8FAFC", included_blue),
-        (0.65, 0.66, 0.34, 0.11, "7 evaluations of 4 off-catalogue\ntools or strategies", "#F1F5F9", branch_grey),
-        (0.05, 0.37, 0.55, 0.12, "482 primary evaluations", "#F8FAFC", included_blue),
-        (0.65, 0.46, 0.34, 0.12, "5 removed\n1 superseded reconstruction\n4 duplicate 2×2 tables", "#F1F5F9", branch_grey),
-        (0.05, 0.08, 0.55, 0.13, "407 unique catalogue\ncalculators represented", "#E6F4FA", included_blue),
-    ]
-    for x, y, width, height, label, face, edge in boxes:
-        ax.add_patch(plt.Rectangle((x, y), width, height, facecolor=face, edgecolor=edge, lw=1.3))
-        ax.text(
-            x + width / 2,
-            y + height / 2,
-            label,
-            ha="center",
-            va="center",
-            fontsize=8.2,
-            color=SLATE,
-            linespacing=1.05,
-        )
-    for y1, y2 in [(0.80, 0.71), (0.59, 0.49)]:
-        ax.annotate("", xy=(0.325, y2), xytext=(0.325, y1), arrowprops={"arrowstyle": "->", "lw": 1.3, "color": SLATE})
-    ax.plot([0.325, 0.325], [0.37, 0.34], color=SLATE, lw=1.3)
-    ax.annotate("", xy=(0.325, 0.21), xytext=(0.325, 0.235), arrowprops={"arrowstyle": "->", "lw": 1.3, "color": SLATE})
-    ax.annotate("", xy=(0.65, 0.715), xytext=(0.325, 0.755), arrowprops={"arrowstyle": "->", "lw": 1.3, "color": branch_grey})
-    ax.annotate("", xy=(0.65, 0.52), xytext=(0.325, 0.54), arrowprops={"arrowstyle": "->", "lw": 1.3, "color": branch_grey})
-    ax.text(0.325, 0.285, "Repeated studies, populations,\noutcomes, and thresholds", fontsize=8.2, ha="center", va="center", color=SLATE)
-    ax.text(0.82, 0.63, "Sensitivity analysis only", ha="center", fontsize=8.2, color=branch_grey)
-
-    ax = axes[1]
-    ax.text(0.00, 0.98, "B", fontsize=13, weight="bold", va="top")
-    ax.text(0.12, 0.98, "Catalogue representation (calculators)", fontsize=10, weight="bold", va="top")
-    ax.text(0.50, 0.83, "847 MDCalc catalogue calculators", ha="center", fontsize=9, weight="bold", color=SLATE)
-    represented_width = 0.90 * flow["mapped_calculators"] / flow["catalog_calculators"]
-    ax.add_patch(plt.Rectangle((0.05, 0.54), represented_width, 0.20, facecolor=included_blue, edgecolor=SLATE, lw=1.0))
-    ax.add_patch(
-        plt.Rectangle(
-            (0.05 + represented_width, 0.54),
-            0.90 - represented_width,
-            0.20,
-            facecolor=unrepresented_grey,
-            edgecolor=SLATE,
-            lw=1.0,
-        )
-    )
-    ax.text(0.05 + represented_width / 2, 0.64, "407 represented\n48.1%", ha="center", va="center", fontsize=8, color="white", weight="bold")
-    ax.text(
-        0.05 + represented_width + (0.90 - represented_width) / 2,
-        0.64,
-        "440 with no primary\nbinary evaluation",
-        ha="center",
-        va="center",
-        fontsize=8,
-        color=SLATE,
-        bbox={"facecolor": unrepresented_grey, "edgecolor": "none", "alpha": 0.9, "pad": 1},
-    )
-    rule_out = catalog_representation.loc[catalog_representation["purpose"] == "Rule Out"].iloc[0]
-    ax.add_patch(plt.Rectangle((0.10, 0.26), 0.80, 0.14, facecolor="#E6F4FA", edgecolor=included_blue, lw=1.2))
-    ax.text(
-        0.50,
-        0.33,
-        f"Rule-out calculators\n{int(rule_out['represented_calculators'])} of {int(rule_out['catalog_calculators'])} represented ({rule_out['representation_percent']:.1f}%)",
-        ha="center",
-        va="center",
-        fontsize=8,
-        color=SLATE,
-    )
-    ax.text(
-        0.50,
-        0.11,
-        "Rule-out use was almost completely represented",
-        ha="center",
-        fontsize=8.5,
-        color=included_blue,
-    )
-    save_figure(fig, figure_dir / "figure1_selection_flow")
-
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.8))
-    axes[0].hist(
-        primary["entropy_reduction_bits"],
-        bins=np.arange(0, 0.8001, 0.04),
-        color=NEUTRAL,
-        edgecolor="white",
-        alpha=0.95,
-    )
-    axes[0].axvline(primary["entropy_reduction_bits"].median(), color=AMBER, ls="--", lw=2)
-    axes[0].set(xlabel="Information gain (bits)", ylabel="Evaluations", title="Absolute information yield")
-    values = np.sort(primary["entropy_removed_percent"].dropna())
-    axes[1].plot(values, 100 * np.arange(1, len(values) + 1) / len(values), color=GREEN, lw=2.5)
-    axes[1].axvline(primary["entropy_removed_percent"].median(), color=AMBER, ls="--", lw=2)
-    axes[1].set(
-        xlabel="Proportional uncertainty removed (%)",
-        ylabel="Cumulative percentage of evaluations",
-        title="Proportional information yield",
-    )
-    label_panels(axes)
-    fig.tight_layout()
-    save_figure(fig, figure_dir / "figure2_information_yield_distribution")
-
+    figure_dir.mkdir(parents=True, exist_ok=True)
+    median_removed = float(primary["entropy_removed_percent"].median())
+    values = np.sort(primary["entropy_removed_percent"].dropna().to_numpy())
     contribution_counts = primary["information_contribution_pattern"].value_counts()
-    positive_share = primary["positive_information_share_percent"]
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-    _, bins, patches = axes[0].hist(positive_share, bins=np.linspace(0, 100, 21), edgecolor="white")
-    for patch in patches:
-        patch.set_facecolor(NEUTRAL)
-        patch.set_alpha(0.85)
-    axes[0].axvline(40, color=SLATE, ls="--", lw=1.5)
-    axes[0].axvline(60, color=SLATE, ls="--", lw=1.5)
-    axes[0].set(
-        xlabel="Information contributed by positive classification (%)",
-        ylabel="Evaluations",
-        title="Distribution of result-specific information",
-        xlim=(0, 100),
+    dominant_count = int(
+        contribution_counts["Negative-result dominant"]
+        + contribution_counts["Positive-result dominant"]
     )
-    axes[0].text(
-        0.02,
-        0.96,
-        f"Negative-result dominant: {contribution_counts['Negative-result dominant']}",
-        transform=axes[0].transAxes,
-        va="top",
-        color=SLATE,
-        fontsize=9,
-    )
-    axes[0].text(
-        0.98,
-        0.96,
-        f"Positive-result dominant: {contribution_counts['Positive-result dominant']}",
-        transform=axes[0].transAxes,
-        va="top",
-        ha="right",
-        color=SLATE,
-        fontsize=9,
-    )
+    assert dominant_count == 329
     purposes = ["Diagnosis", "Prognosis", "Rule Out", "Treatment"]
     purpose_groups = [
         primary.loc[purpose_mask(primary, purpose), "positive_information_share_percent"]
         for purpose in purposes
     ]
-    box = axes[1].boxplot(
-        purpose_groups,
-        tick_labels=[f"{purpose}\n(n={len(data)})" for purpose, data in zip(purposes, purpose_groups)],
-        patch_artist=True,
-        showfliers=False,
+    prevalence_labels = ["Q1 lowest", "Q2", "Q3", "Q4 highest"]
+    prevalence_plot = primary.copy()
+    prevalence_plot["prevalence_quartile"] = pd.qcut(
+        prevalence_plot["prevalence"], 4, labels=prevalence_labels
     )
-    for purpose, patch in zip(purposes, box["boxes"]):
-        patch.set_facecolor("#bbf7d0" if purpose == "Rule Out" else "#e2e8f0")
-        patch.set_edgecolor(HIGHLIGHT if purpose == "Rule Out" else SLATE)
-    jitter_rng = np.random.default_rng(20260811)
-    for position, data in enumerate(purpose_groups, start=1):
-        axes[1].scatter(
-            position + jitter_rng.normal(0, 0.04, len(data)),
-            data,
-            color=SLATE,
-            s=9,
-            alpha=0.18,
-            edgecolors="none",
-        )
-    axes[1].axhline(50, color=SLATE, ls="--", lw=1.2)
-    axes[1].set(
-        xlabel="Clinical purpose (labels may overlap)",
-        ylabel="Positive-result information share (%)",
-        title="Rule-out tools shift information to the negative result",
-        ylim=(0, 100),
-    )
-    axes[0].text(
-        0.50,
-        0.96,
-        f"Balanced: {contribution_counts['Balanced']}",
-        transform=axes[0].transAxes,
-        va="top",
-        ha="center",
-        color=SLATE,
-        fontsize=9,
-    )
-    label_panels(axes)
-    fig.tight_layout()
-    save_figure(fig, figure_dir / "figure3_result_information_contributions")
-
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-    scatter = axes[0].scatter(primary["youden_j"], primary["entropy_reduction_bits"], c=100 * primary["prevalence"], cmap=CONTINUOUS_CMAP, s=24, alpha=0.75)
-    axes[0].set(xlabel="Youden's J", ylabel="Information gain (bits)", title="Absolute information yield")
-    fig.colorbar(scatter, ax=axes[0], label="Outcome prevalence (%)")
-    axes[1].scatter(primary["youden_j"], primary["entropy_removed_percent"], color=NEUTRAL, s=24, alpha=0.65)
-    axes[1].set(xlabel="Youden's J", ylabel="Proportional uncertainty removed (%)", title="Proportional information yield")
-    label_panels(axes)
-    fig.tight_layout()
-    save_figure(fig, figure_dir / "figureS3_youden_information_relationship")
-
-    plotted = primary.copy()
-    plotted["prevalence_quartile"] = pd.qcut(plotted["prevalence"], 4, labels=["Q1 lowest", "Q2", "Q3", "Q4 highest"])
-    groups = [plotted.loc[plotted["prevalence_quartile"].eq(label), "entropy_reduction_bits"] for label in ["Q1 lowest", "Q2", "Q3", "Q4 highest"]]
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-    box = axes[0].boxplot(groups, tick_labels=["Q1", "Q2", "Q3", "Q4"], patch_artist=True, showfliers=False)
-    for patch in box["boxes"]:
-        patch.set_facecolor("#dbeafe")
-        patch.set_edgecolor(BLUE)
-    axes[0].set(xlabel="Outcome prevalence quartile", ylabel="Information gain (bits)", title="Information yield by prevalence")
-    scatter = axes[1].scatter(primary["parent_entropy_bits"], primary["entropy_reduction_bits"], c=primary["youden_j"], cmap=CONTINUOUS_CMAP, s=24, alpha=0.75)
-    axes[1].set(xlabel="Baseline uncertainty (bits)", ylabel="Information gain (bits)", title="Available versus removed uncertainty")
-    fig.colorbar(scatter, ax=axes[1], label="Youden's J")
-    label_panels(axes)
-    fig.tight_layout()
-    save_figure(fig, figure_dir / "figure4_prevalence_information_yield")
-
-    plotted = primary.assign(
+    prevalence_groups = [
+        prevalence_plot.loc[
+            prevalence_plot["prevalence_quartile"].eq(label), "entropy_reduction_bits"
+        ]
+        for label in prevalence_labels
+    ]
+    sample_labels = ["Q1 smallest", "Q2", "Q3", "Q4 largest"]
+    sample_plot = primary.assign(
         sample_size_quartile=pd.qcut(
-            primary["reported_sample_size"],
-            4,
-            labels=["Q1 smallest", "Q2", "Q3", "Q4 largest"],
+            primary["reported_sample_size"], 4, labels=sample_labels
         )
     )
     sample_groups = [
-        plotted.loc[plotted["sample_size_quartile"].eq(label), "entropy_removed_percent"]
-        for label in ["Q1 smallest", "Q2", "Q3", "Q4 largest"]
+        sample_plot.loc[
+            sample_plot["sample_size_quartile"].eq(label), "entropy_removed_percent"
+        ]
+        for label in sample_labels
     ]
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-    box = axes[0].boxplot(
-        sample_groups,
-        tick_labels=["Q1", "Q2", "Q3", "Q4"],
-        patch_artist=True,
-        showfliers=False,
-    )
-    for patch in box["boxes"]:
-        patch.set_facecolor("#dbeafe")
-        patch.set_edgecolor(ACCENT)
-    axes[0].set(
-        xlabel="Reported study size quartile",
-        ylabel="Proportional uncertainty removed (%)",
-        title="Information yield by study size",
-    )
-    axes[1].scatter(
-        primary["reported_sample_size"],
-        primary["entropy_removed_percent"],
-        color=NEUTRAL,
-        s=24,
-        alpha=0.45,
-    )
-    axes[1].set_xscale("log")
-    axes[1].set(
-        xlabel="Reported sample size (log scale)",
-        ylabel="Proportional uncertainty removed (%)",
-        title="Evaluation-level relationship",
-    )
-    outlier = primary.loc[primary["reported_sample_size"].idxmax()]
-    axes[1].annotate(
-        "4.83 million participants",
-        (outlier["reported_sample_size"], outlier["entropy_removed_percent"]),
-        xytext=(-110, 18),
-        textcoords="offset points",
-        arrowprops={"arrowstyle": "->", "color": ACCENT, "lw": 1.2},
-        color=ACCENT,
-        fontsize=9,
-    )
-    label_panels(axes)
-    fig.tight_layout()
-    save_figure(fig, figure_dir / "figure5_sample_size_information_yield")
-
-    plotted = specialty_comparison.sort_values("median_removed_percent")
-    positions = np.arange(len(plotted))
-    fig, ax = plt.subplots(figsize=(9, 7.2))
-    ax.errorbar(
-        plotted["median_removed_percent"],
-        positions + 0.12,
-        xerr=np.vstack(
-            [
-                plotted["median_removed_percent"] - plotted["removed_ci_low"],
-                plotted["removed_ci_high"] - plotted["median_removed_percent"],
-            ]
-        ),
-        fmt="o",
-        color=BLUE,
-        capsize=3,
-        label="Observed outcome frequency",
-    )
-    ax.errorbar(
-        plotted["median_fixed_10_percent"],
-        positions - 0.12,
-        xerr=np.vstack(
-            [
-                plotted["median_fixed_10_percent"] - plotted["fixed_10_ci_low"],
-                plotted["fixed_10_ci_high"] - plotted["median_fixed_10_percent"],
-            ]
-        ),
-        fmt="s",
-        color=AMBER,
-        capsize=3,
-        label="All outcomes set to 10%",
-    )
-    ax.set_yticks(positions, plotted["specialty"])
-    ax.set(
-        xlabel="Median proportional uncertainty removed (%)",
-        ylabel="Clinical specialty (labels may overlap)",
-        title="Information yield across commonly represented specialties",
-    )
-    ax.legend(frameon=False, loc="upper left")
-    ax.grid(axis="x", alpha=0.2)
-    fig.tight_layout()
-    save_figure(fig, figure_dir / "figure7_specialty_information_yield")
-
     prevalence_scenarios = [0.05, 0.10, 0.25, 0.50]
     standardized = [information_at_prevalence(primary, prevalence) for prevalence in prevalence_scenarios]
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-    box = axes[0].boxplot(
-        [data["entropy_removed_percent"] for data in standardized],
-        tick_labels=["5%", "10%", "25%", "50%"],
-        patch_artist=True,
-        showfliers=False,
-    )
-    for patch in box["boxes"]:
-        patch.set_facecolor("#fef3c7")
-        patch.set_edgecolor(AMBER)
-    axes[0].set(
-        xlabel="Fixed outcome prevalence",
-        ylabel="Proportional uncertainty removed (%)",
-        title="Information yield at standardized prevalence",
-    )
     standardized_10 = standardized[1]["entropy_removed_percent"]
-    axes[1].scatter(
-        primary["entropy_removed_percent"], standardized_10, color=BLUE, s=22, alpha=0.5
-    )
-    axes[1].plot([0, 100], [0, 100], color=SLATE, ls="--", lw=1.2)
-    axes[1].set(
-        xlabel="Observed proportional uncertainty removed (%)",
-        ylabel="Proportional uncertainty removed at 10% prevalence (%)",
-        title=f"Observed versus standardized ranking (Spearman rho={stats.spearmanr(primary['entropy_removed_percent'], standardized_10).statistic:.3f})",
-        xlim=(0, 100),
-        ylim=(0, 100),
-    )
-    fig.tight_layout()
-    save_figure(fig, figure_dir / "figureS1_prevalence_standardization")
 
-    fig, ax = plt.subplots(figsize=(8, 4.8))
-    bars = ax.barh(
-        catalog_representation["purpose"],
-        catalog_representation["representation_percent"],
-        color=[BLUE, CYAN, GREEN, AMBER],
-        alpha=0.85,
-    )
-    for bar, row in zip(bars, catalog_representation.itertuples()):
-        ax.text(
-            min(bar.get_width() + 1.5, 98),
-            bar.get_y() + bar.get_height() / 2,
-            f"{row.represented_calculators}/{row.catalog_calculators}",
-            va="center",
-            fontsize=10,
+    def save_variants(stem: str, builder: object) -> None:
+        for grayscale in (False, True):
+            colours = configure_figure_style(grayscale)
+            fig = builder(colours, grayscale)
+            suffix = "_grayscale" if grayscale else ""
+            save_figure(fig, figure_dir / f"{stem}{suffix}")
+
+    def graphical_abstract(colours: tuple[str, ...], grayscale: bool) -> plt.Figure:
+        fig, ax = plt.subplots(figsize=figure_size(88), constrained_layout=True)
+        ax.set(xlim=(0, 1), ylim=(0, 1))
+        ax.axis("off")
+        fig.suptitle(
+            "What does a clinical calculator result mean?",
+            x=0.04,
+            y=0.97,
+            ha="left",
+            fontsize=14,
+            weight="semibold",
         )
-    ax.set(
-        xlabel="Catalogue calculators represented by usable binary evaluations (%)",
-        ylabel="Nonexclusive calculator-purpose label",
-        title="Representation of the binary-data pipeline by clinical purpose",
-        xlim=(0, 105),
-    )
-    fig.tight_layout()
-    save_figure(fig, figure_dir / "figureS2_catalog_representation_by_purpose")
+        ax.vlines([0.31, 0.69], 0.18, 0.84, color=GRID, lw=0.8)
+
+        ax.text(0.03, 0.80, "CATALOGUE EVIDENCE", fontsize=7.5, weight="semibold", color=MUTED)
+        ax.text(0.03, 0.61, "482", fontsize=26, weight="bold", color=colours[0])
+        ax.text(0.03, 0.49, "binary evaluations", fontsize=9)
+        ax.text(0.03, 0.34, "407 calculators represented", fontsize=9)
+
+        ax.text(0.35, 0.80, "HOW MUCH WAS ADDED?", fontsize=7.5, weight="semibold", color=MUTED)
+        ax.hlines(0.54, 0.36, 0.65, color=GRID, lw=1.2)
+        for value, label, y, dx, alignment, colour, marker in (
+            (5.0, "21.2% below 5%", 0.64, -0.008, "right", colours[2], "^"),
+            (median_removed, "14.9% median", 0.44, 0.000, "center", colours[3], "D"),
+            (50.0, "10.0% at least 50%", 0.64, 0.008, "left", colours[1], "s"),
+        ):
+            x = 0.36 + 0.29 * value / 100
+            ax.scatter(x, 0.54, s=36, marker=marker, color=colour, zorder=3)
+            ax.text(x + dx, y, label, ha=alignment, va="center", fontsize=7.2)
+        ax.text(0.50, 0.27, "Percentage of starting\nuncertainty removed", ha="center", fontsize=8.3)
+
+        ax.text(0.73, 0.80, "WHICH CLASSIFICATION?", fontsize=7.5, weight="semibold", color=MUTED)
+        ax.text(0.73, 0.62, "68.3%", fontsize=24, weight="bold", color=colours[0])
+        ax.text(0.73, 0.50, "result dominant\n(329 of 482 evaluations)", fontsize=8.5, linespacing=1.2)
+        ax.text(0.73, 0.31, "71.3%", fontsize=17, weight="semibold", color=colours[1])
+        ax.text(0.73, 0.21, "median negative share among\nrule-out evaluations", fontsize=7.5, va="center")
+        ax.text(0.03, 0.08, "Average information describes learning in an evaluated population; it is not clinical utility.", fontsize=8.5, color=MUTED)
+        return fig
+
+    def selection_flow(colours: tuple[str, ...], grayscale: bool) -> plt.Figure:
+        fig, axes = plt.subplots(
+            1,
+            2,
+            figsize=figure_size(96),
+            gridspec_kw={"width_ratios": [1.35, 1]},
+            constrained_layout=True,
+        )
+        ax = axes[0]
+        label_panel(ax, "A", "Evidence selection")
+        ax.set(xlim=(0, 1), ylim=(0, 1))
+        ax.axis("off")
+        stages = (
+            (0.84, "494", "binary evaluation records"),
+            (0.63, "487", "linked to the MDCalc catalogue"),
+            (0.42, "482", "primary evaluations"),
+            (0.17, "407", "unique catalogue calculators represented"),
+        )
+        ax.plot([0.16, 0.16], [0.17, 0.84], color=colours[0], lw=1.5)
+        for y, count, label in stages:
+            ax.scatter(0.16, y, s=42, color=colours[0], edgecolor=WHITE, linewidth=0.6, zorder=3)
+            ax.text(0.23, y + 0.015, count, fontsize=12, weight="semibold", va="center")
+            ax.text(0.23, y - 0.045, label, fontsize=8, va="center")
+        ax.annotate(
+            "7 evaluations of 4 off-catalogue\ntools or strategies; sensitivity analysis only",
+            xy=(0.16, 0.70),
+            xytext=(0.58, 0.72),
+            arrowprops={"arrowstyle": "-", "color": MUTED, "lw": 0.8},
+            fontsize=7.5,
+            va="center",
+        )
+        ax.annotate(
+            "5 removed: 1 superseded reconstruction\nand 4 duplicate 2×2 tables",
+            xy=(0.16, 0.49),
+            xytext=(0.58, 0.50),
+            arrowprops={"arrowstyle": "-", "color": MUTED, "lw": 0.8},
+            fontsize=7.5,
+            va="center",
+        )
+        ax.text(0.23, 0.06, "Repeated studies, populations, outcomes, and thresholds were retained.", fontsize=7.5, color=MUTED)
+
+        ax = axes[1]
+        label_panel(ax, "B", "Catalogue coverage")
+        represented = 100 * flow["mapped_calculators"] / flow["catalog_calculators"]
+        ax.barh([0.72], [represented], color=colours[0], height=0.16)
+        ax.barh([0.72], [100 - represented], left=[represented], color=GRID, height=0.16)
+        ax.text(represented / 2, 0.72, "407 represented\n48.1%", ha="center", va="center", color=WHITE, fontsize=8, weight="semibold")
+        ax.text(represented + (100 - represented) / 2, 0.72, "440 without an included\nbinary evaluation", ha="center", va="center", fontsize=7.5)
+        rule_out = catalog_representation.loc[catalog_representation["purpose"].eq("Rule Out")].iloc[0]
+        ax.hlines(0.30, 0, 100, color=GRID, lw=1.2)
+        ax.scatter(rule_out["representation_percent"], 0.30, s=42, marker="s", color=colours[1], zorder=3)
+        ax.text(0, 0.39, "Rule-out calculators", fontsize=8, weight="semibold")
+        ax.text(
+            rule_out["representation_percent"] - 1,
+            0.20,
+            f"{int(rule_out['represented_calculators'])} of {int(rule_out['catalog_calculators'])} ({rule_out['representation_percent']:.1f}%)",
+            ha="right",
+            fontsize=8,
+            color=colours[1],
+        )
+        ax.set(xlim=(0, 100), ylim=(0, 1), xlabel="Catalogue calculators represented (%)")
+        ax.set_yticks([])
+        return fig
+
+    def information_distribution(colours: tuple[str, ...], grayscale: bool) -> plt.Figure:
+        fig, axes = plt.subplots(1, 2, figsize=figure_size(92), constrained_layout=True)
+        axes[0].hist(
+            primary["entropy_removed_percent"],
+            bins=np.arange(0, 100.1, 5),
+            color=GRAYS[3] if grayscale else "#9AA8B8",
+            edgecolor=WHITE,
+            alpha=0.95,
+        )
+        label_panel(axes[0], "A", "Wide variation across evaluations")
+        axes[0].set(xlabel="Starting uncertainty removed (%)", ylabel="Evaluations", xlim=(0, 100))
+        axes[1].plot(values, 100 * np.arange(1, len(values) + 1) / len(values), color=colours[0], lw=1.8)
+        label_panel(axes[1], "B", "Cumulative distribution")
+        axes[1].set(xlabel="Starting uncertainty removed (%)", ylabel="Evaluations at or below value (%)", xlim=(0, 100), ylim=(0, 101))
+        for ax in axes:
+            for value, colour, linestyle in ((5.0, colours[2], ":"), (median_removed, colours[3], "--"), (50.0, colours[1], "-.")):
+                ax.axvline(value, color=colour, ls=linestyle, lw=1.2)
+        axes[0].text(4.0, 101, "102 below 5%", ha="left", va="bottom", fontsize=7.5, color=colours[2])
+        axes[0].text(median_removed + 1.2, 88, "Median 14.9%", rotation=90, va="top", fontsize=7.5, color=colours[3])
+        axes[0].text(51.5, 58, "48 at least 50%", rotation=90, va="top", fontsize=7.5, color=colours[1])
+        return fig
+
+    def result_contributions(colours: tuple[str, ...], grayscale: bool) -> plt.Figure:
+        fig, axes = plt.subplots(1, 2, figsize=figure_size(94), constrained_layout=True)
+        axes[0].hist(
+            primary["positive_information_share_percent"],
+            bins=np.linspace(0, 100, 21),
+            color=GRAYS[3] if grayscale else "#9AA8B8",
+            edgecolor=WHITE,
+        )
+        axes[0].axvline(40, color=MUTED, ls="--", lw=0.9)
+        axes[0].axvline(60, color=MUTED, ls="--", lw=0.9)
+        label_panel(axes[0], "A", "Result dominance")
+        axes[0].set(xlabel="Average information accounted for by positive classification (%)", ylabel="Evaluations", xlim=(0, 100))
+        top = axes[0].get_ylim()[1]
+        axes[0].text(20, top * 0.94, "Negative dominant\n156", ha="center", va="top", fontsize=7.4, color=colours[1])
+        axes[0].text(50, top * 0.94, "Balanced\n153", ha="center", va="top", fontsize=7.4, color=MUTED)
+        axes[0].text(80, top * 0.94, "Positive dominant\n173", ha="center", va="top", fontsize=7.4, color=colours[3])
+        axes[0].text(50, top * 0.73, "329/482 (68.3%) result dominant", ha="center", fontsize=8, weight="semibold")
+
+        label_panel(axes[1], "B", "Clinical purpose")
+        for position, (purpose, data) in enumerate(zip(purposes, purpose_groups), start=1):
+            colour = colours[1] if purpose == "Rule Out" else colours[0]
+            marker = "s" if purpose == "Rule Out" else "o"
+            strip_interval(axes[1], data, position, colour, marker=marker)
+        axes[1].axhline(50, color=MUTED, ls="--", lw=0.8)
+        axes[1].set_xticks(range(1, 5), [f"{purpose}\n(n={len(data)})" for purpose, data in zip(purposes, purpose_groups)])
+        axes[1].set(xlabel="Clinical purpose (labels may overlap)", ylabel="Positive-classification information share (%)", ylim=(0, 100))
+        rule_out_median = float(purpose_groups[2].median())
+        axes[1].annotate(
+            f"28.7% positive\n71.3% negative",
+            xy=(3, rule_out_median),
+            xytext=(3.38, 17),
+            arrowprops={"arrowstyle": "-", "color": colours[1], "lw": 0.8},
+            fontsize=7.5,
+            color=colours[1],
+        )
+        return fig
+
+    def starting_risk(colours: tuple[str, ...], grayscale: bool) -> plt.Figure:
+        fig, axes = plt.subplots(1, 2, figsize=figure_size(94), constrained_layout=True)
+        label_panel(axes[0], "A", "Starting risk")
+        for position, group in enumerate(prevalence_groups, start=1):
+            strip_interval(axes[0], group, position, colours[0])
+            axes[0].text(position, float(group.median()) + 0.025, f"{group.median():.3f}", ha="center", fontsize=7.2, color=colours[0])
+        axes[0].set_xticks(range(1, 5), ["Q1", "Q2", "Q3", "Q4"])
+        axes[0].set(xlabel="Outcome-frequency quartile", ylabel="Information gained (bits)")
+        cmap = "Greys" if grayscale else "viridis"
+        scatter = axes[1].scatter(
+            primary["parent_entropy_bits"],
+            primary["entropy_reduction_bits"],
+            c=primary["youden_j"],
+            cmap=cmap,
+            s=14,
+            alpha=0.58,
+            edgecolors="none",
+        )
+        label_panel(axes[1], "B", "Available uncertainty")
+        axes[1].set(xlabel="Starting uncertainty (bits)", ylabel="Information gained (bits)")
+        fig.colorbar(scatter, ax=axes[1], label="Youden's J", shrink=0.88)
+        return fig
+
+    def study_size(colours: tuple[str, ...], grayscale: bool) -> plt.Figure:
+        fig, axes = plt.subplots(1, 2, figsize=figure_size(94), constrained_layout=True)
+        label_panel(axes[0], "A", "Reduction was lower in larger reported studies")
+        for position, group in enumerate(sample_groups, start=1):
+            strip_interval(axes[0], group, position, colours[0])
+            axes[0].text(position, float(group.median()) + 3.2, f"{group.median():.1f}%", ha="center", fontsize=7.3, color=colours[0])
+        axes[0].set_xticks(range(1, 5), ["Q1", "Q2", "Q3", "Q4"])
+        axes[0].set(xlabel="Reported study-size quartile", ylabel="Starting uncertainty removed (%)", ylim=(0, 104))
+        axes[1].scatter(
+            primary["reported_sample_size"],
+            primary["entropy_removed_percent"],
+            color=colours[0],
+            s=13,
+            alpha=0.28,
+            edgecolors="none",
+        )
+        axes[1].set_xscale("log")
+        label_panel(axes[1], "B", "Evaluation-level association")
+        axes[1].set(xlabel="Reported sample size (log scale)", ylabel="Starting uncertainty removed (%)")
+        rho = float(stats.spearmanr(primary["reported_sample_size"], primary["entropy_removed_percent"]).statistic)
+        axes[1].text(0.03, 0.95, f"Spearman ρ = {rho:.3f}", transform=axes[1].transAxes, va="top", fontsize=7.5)
+        outlier = primary.loc[primary["reported_sample_size"].idxmax()]
+        axes[1].annotate(
+            "4.83 million participants",
+            (outlier["reported_sample_size"], outlier["entropy_removed_percent"]),
+            xytext=(-100, 18),
+            textcoords="offset points",
+            arrowprops={"arrowstyle": "-", "color": colours[3], "lw": 0.8},
+            color=colours[3],
+            fontsize=7.3,
+        )
+        return fig
+
+    def youden_relationship(colours: tuple[str, ...], grayscale: bool) -> plt.Figure:
+        fig, axes = plt.subplots(1, 2, figsize=figure_size(94), constrained_layout=True)
+        cmap = "Greys" if grayscale else "viridis"
+        scatter = axes[0].scatter(
+            primary["youden_j"],
+            primary["entropy_reduction_bits"],
+            c=100 * primary["prevalence"],
+            cmap=cmap,
+            s=14,
+            alpha=0.58,
+            edgecolors="none",
+        )
+        label_panel(axes[0], "A", "Information gain and Youden's J")
+        axes[0].set(xlabel="Youden's J", ylabel="Information gained (bits)")
+        fig.colorbar(scatter, ax=axes[0], label="Outcome frequency (%)", shrink=0.88)
+        axes[1].scatter(
+            primary["youden_j"],
+            primary["entropy_removed_percent"],
+            color=colours[0],
+            s=14,
+            alpha=0.34,
+            edgecolors="none",
+        )
+        label_panel(axes[1], "B", "Percentage reduction and Youden's J")
+        axes[1].set(xlabel="Youden's J", ylabel="Starting uncertainty removed (%)")
+        return fig
+
+    def prevalence_standardization(colours: tuple[str, ...], grayscale: bool) -> plt.Figure:
+        fig, axes = plt.subplots(1, 2, figsize=figure_size(94), constrained_layout=True)
+        label_panel(axes[0], "A", "Information yield at fixed outcome frequencies")
+        for position, data in enumerate(standardized, start=1):
+            strip_interval(axes[0], data["entropy_removed_percent"], position, colours[2], marker="^")
+        axes[0].set_xticks(range(1, 5), ["5%", "10%", "25%", "50%"])
+        axes[0].set(xlabel="Fixed outcome frequency", ylabel="Starting uncertainty removed (%)", ylim=(0, 104))
+        axes[1].scatter(
+            primary["entropy_removed_percent"],
+            standardized_10,
+            color=colours[0],
+            s=13,
+            alpha=0.30,
+            edgecolors="none",
+        )
+        axes[1].plot([0, 100], [0, 100], color=MUTED, ls="--", lw=0.8)
+        rho = float(stats.spearmanr(primary["entropy_removed_percent"], standardized_10).statistic)
+        label_panel(axes[1], "B", "Observed versus standardised ranking")
+        axes[1].set(xlabel="Observed uncertainty removed (%)", ylabel="Uncertainty removed at 10% frequency (%)", xlim=(0, 100), ylim=(0, 100))
+        axes[1].text(0.04, 0.94, f"Spearman ρ = {rho:.3f}", transform=axes[1].transAxes, va="top", fontsize=7.5)
+        return fig
+
+    def catalogue_purpose(colours: tuple[str, ...], grayscale: bool) -> plt.Figure:
+        fig, ax = plt.subplots(figsize=figure_size(84), constrained_layout=True)
+        bars = ax.barh(
+            catalog_representation["purpose"],
+            catalog_representation["representation_percent"],
+            color=colours[0],
+            alpha=0.78,
+        )
+        for bar, row in zip(bars, catalog_representation.itertuples()):
+            ax.text(
+                min(bar.get_width() + 1.5, 99),
+                bar.get_y() + bar.get_height() / 2,
+                f"{row.represented_calculators}/{row.catalog_calculators} ({row.representation_percent:.1f}%)",
+                va="center",
+                fontsize=7.5,
+            )
+        ax.set(
+            xlabel="Catalogue calculators represented by included binary evaluations (%)",
+            ylabel="Nonexclusive clinical-purpose label",
+            title="Binary-evaluation coverage differed by clinical purpose",
+            xlim=(0, 106),
+        )
+        return fig
+
+    def specialty_yield(colours: tuple[str, ...], grayscale: bool) -> plt.Figure:
+        plotted = specialty_comparison.sort_values("median_removed_percent")
+        positions = np.arange(len(plotted))
+        fig, ax = plt.subplots(figsize=figure_size(132), constrained_layout=True)
+        ax.errorbar(
+            plotted["median_removed_percent"],
+            positions + 0.12,
+            xerr=np.vstack(
+                [
+                    plotted["median_removed_percent"] - plotted["removed_ci_low"],
+                    plotted["removed_ci_high"] - plotted["median_removed_percent"],
+                ]
+            ),
+            fmt="o",
+            color=colours[0],
+            capsize=2,
+            label="Observed outcome frequency",
+        )
+        ax.errorbar(
+            plotted["median_fixed_10_percent"],
+            positions - 0.12,
+            xerr=np.vstack(
+                [
+                    plotted["median_fixed_10_percent"] - plotted["fixed_10_ci_low"],
+                    plotted["fixed_10_ci_high"] - plotted["median_fixed_10_percent"],
+                ]
+            ),
+            fmt="s",
+            color=colours[2],
+            capsize=2,
+            label="All outcomes set to 10%",
+        )
+        ax.set_yticks(positions, plotted["specialty"])
+        ax.set(
+            xlabel="Median starting uncertainty removed (%)",
+            ylabel="Clinical specialty (labels may overlap)",
+            title="Information yield across commonly represented specialties",
+        )
+        ax.legend(loc="upper left")
+        ax.grid(axis="x", color=GRID, lw=0.5)
+        return fig
+
+    save_variants("graphical_abstract", graphical_abstract)
+    save_variants("figure1_selection_flow", selection_flow)
+    save_variants("figure2_information_yield_distribution", information_distribution)
+    save_variants("figure3_result_information_contributions", result_contributions)
+    save_variants("figure4_prevalence_information_yield", starting_risk)
+    save_variants("figureS1_sample_size_information_yield", study_size)
+    save_variants("figureS2_youden_information_relationship", youden_relationship)
+    save_variants("figureS3_prevalence_standardization", prevalence_standardization)
+    save_variants("figureS4_catalog_representation_by_purpose", catalogue_purpose)
+    save_variants("figureS5_specialty_information_yield", specialty_yield)
 
 
 def main(source: Path = SOURCE) -> None:
@@ -1629,6 +1834,12 @@ def main(source: Path = SOURCE) -> None:
         "Paraskevas et al. 2022, doi:10.2478/rjim-2022-0015"
     )
 
+    perc = evaluations["source_label"].eq("PERC Rule for Pulmonary Embolism")
+    if perc.sum() != 1:
+        raise ValueError("Expected one PERC validation record")
+    evaluations.loc[perc, "source_disease"] = "Venous thromboembolism or death within 45 days"
+    evaluations.loc[perc, "cutoff"] = "Low clinical suspicion (<15%) and all eight PERC criteria negative"
+
     matches = [match_catalog(label, catalog) for label in evaluations["source_label"]]
     evaluations[["catalog_id", "canonical_name", "match_method"]] = pd.DataFrame(matches, index=evaluations.index)
     catalog_lookup = catalog.set_index("catalog_id")
@@ -1645,6 +1856,7 @@ def main(source: Path = SOURCE) -> None:
     )
     evaluations["confidence_group"] = evaluations["confidence"].map(confidence_group)
     evaluations["evidence_group"] = evaluations["data_source"].map(evidence_group)
+    evaluations["sampling_design"] = evaluations["study"].map(sampling_design_group)
     evaluations["integer_counts"] = evaluations[["tp", "fp", "fn", "tn"]].apply(
         lambda row: bool(np.all(np.isclose(row, np.round(row)))), axis=1
     )
@@ -1704,26 +1916,58 @@ def main(source: Path = SOURCE) -> None:
         "specificity",
         "prevalence",
         "youden_j",
+        "entropy_removed_percent",
         "parent_entropy_bits",
         "entropy_reduction_bits",
-        "entropy_removed_percent",
     ]
     descriptions = pd.DataFrame([{"measure": name, **describe(primary[name])} for name in metric_names])
     correlations = correlation_table(primary)
     sensitivities = sensitivity_table(primary, expanded)
+    evidence_audit = evidence_audit_table(primary)
+    sampling_design = sampling_design_table(primary)
     sample_sizes = sample_size_table(primary)
     headline_uncertainty = cluster_bootstrap_headline(primary)
+    rule_out_information = primary.loc[
+        purpose_mask(primary, "Rule Out"),
+        ["calculator_key", "positive_information_share_percent"],
+    ].copy()
+    rule_out_information["negative_information_share_percent"] = (
+        100 - rule_out_information["positive_information_share_percent"]
+    )
+    rule_out_ci = cluster_bootstrap_median(
+        rule_out_information, "negative_information_share_percent"
+    )
+    headline_uncertainty = pd.concat(
+        [
+            headline_uncertainty,
+            pd.DataFrame(
+                [
+                    {
+                        "measure": "Median negative-result information share among rule-out evaluations, %",
+                        "estimate": rule_out_information[
+                            "negative_information_share_percent"
+                        ].median(),
+                        "ci_low": rule_out_ci[0],
+                        "ci_high": rule_out_ci[1],
+                    }
+                ]
+            ),
+        ],
+        ignore_index=True,
+    )
     purpose_sample_sizes = purpose_sample_size_table(primary)
     prevalence_standardization = prevalence_standardization_table(primary)
     study_size_bias_robustness = study_size_bias_robustness_table(primary)
     specialty_comparison = specialty_comparison_table(primary)
     catalog_representation = catalog_representation_table(catalog, primary)
-    clinical_atlas, illustrative_atlas, supplemental_atlas, clinical_atlas_ledger = (
+    clinical_atlas, prevalence_experiment, youden_experiment, supplemental_atlas, clinical_atlas_ledger = (
         clinical_metric_atlas_tables(primary)
     )
     descriptions.to_csv(table_dir / "table1_descriptive_statistics.csv", index=False)
     correlations.to_csv(table_dir / "table2_correlations.csv", index=False)
     sensitivities.to_csv(table_dir / "table3_sensitivity_analyses.csv", index=False)
+    evidence_audit.to_csv(table_dir / "tableS2_evidence_audit.csv", index=False)
+    sampling_design.to_csv(table_dir / "tableS14_sampling_design_sensitivity.csv", index=False)
     sample_sizes.to_csv(table_dir / "table4_sample_size_analyses.csv", index=False)
     headline_uncertainty.to_csv(table_dir / "tableS10_headline_cluster_bootstrap.csv", index=False)
     purpose_sample_sizes.to_csv(table_dir / "table5_purpose_sample_size_correlations.csv", index=False)
@@ -1734,9 +1978,10 @@ def main(source: Path = SOURCE) -> None:
     catalog_representation.to_csv(table_dir / "tableS9_catalog_representation.csv", index=False)
     specialty_comparison.to_csv(table_dir / "tableS11_specialty_comparison.csv", index=False)
     clinical_atlas.to_csv(table_dir / "table2_clinical_metric_atlas.csv", index=False)
-    illustrative_atlas.to_csv(
+    prevalence_experiment.to_csv(
         table_dir / "table3_prevalence_shift_experiment.csv", index=False
     )
+    youden_experiment.to_csv(table_dir / "table4_same_youden_experiment.csv", index=False)
     supplemental_atlas.to_csv(table_dir / "tableS12_clinical_metric_atlas.csv", index=False)
     clinical_atlas_ledger.to_csv(
         table_dir / "tableS12_clinical_metric_atlas_source_ledger.csv", index=False
@@ -1744,6 +1989,11 @@ def main(source: Path = SOURCE) -> None:
     save_table_markdown(descriptions, table_dir / "table1_descriptive_statistics.md")
     save_table_markdown(correlations, table_dir / "table2_correlations.md")
     save_table_markdown(sensitivities, table_dir / "table3_sensitivity_analyses.md")
+    save_table_markdown(evidence_audit, table_dir / "tableS2_evidence_audit.md")
+    save_table_markdown(
+        sampling_design,
+        table_dir / "tableS14_sampling_design_sensitivity.md",
+    )
     save_table_markdown(sample_sizes, table_dir / "table4_sample_size_analyses.md")
     save_table_markdown(headline_uncertainty, table_dir / "tableS10_headline_cluster_bootstrap.md")
     save_table_markdown(purpose_sample_sizes, table_dir / "table5_purpose_sample_size_correlations.md")
@@ -1762,8 +2012,12 @@ def main(source: Path = SOURCE) -> None:
         table_dir / "table2_clinical_metric_atlas.md",
     )
     save_table_markdown(
-        atlas_display_table(illustrative_atlas),
+        atlas_display_table(prevalence_experiment),
         table_dir / "table3_prevalence_shift_experiment.md",
+    )
+    save_table_markdown(
+        atlas_display_table(youden_experiment),
+        table_dir / "table4_same_youden_experiment.md",
     )
     save_table_markdown(
         atlas_display_table(supplemental_atlas),
@@ -1776,7 +2030,7 @@ def main(source: Path = SOURCE) -> None:
     shapiro_bits = stats.shapiro(primary["entropy_reduction_bits"])
     shapiro_percent = stats.shapiro(primary["entropy_removed_percent"])
     summary = {
-        "version": "BMJ 0.5.0",
+        "version": "BMJ 0.14.3",
         "source_sha256": source_hash,
         "flow": flow,
         "descriptive": {name: describe(primary[name]) for name in metric_names},
@@ -1791,7 +2045,7 @@ def main(source: Path = SOURCE) -> None:
             "entropy_bits_shapiro_p": shapiro_bits.pvalue,
             "entropy_percent_shapiro_w": shapiro_percent.statistic,
             "entropy_percent_shapiro_p": shapiro_percent.pvalue,
-            "primary_correlation": "Spearman because both entropy outcomes were non-normal",
+            "primary_correlation": "Spearman for monotonic associations with less sensitivity to extreme values; Pearson secondary",
         },
         "sample_size": {
             "rho_bits": stats.spearmanr(
@@ -1830,16 +2084,24 @@ def main(source: Path = SOURCE) -> None:
                     purpose_mask(primary, "Rule Out"), "positive_information_share_percent"
                 ].median()
             ),
+            "rule_out_evaluations": int(len(rule_out_information)),
+            "rule_out_median_negative_share_percent": float(
+                rule_out_information["negative_information_share_percent"].median()
+            ),
+            "rule_out_median_negative_share_ci_low": float(rule_out_ci[0]),
+            "rule_out_median_negative_share_ci_high": float(rule_out_ci[1]),
         },
         "headline_uncertainty": headline_uncertainty.to_dict(orient="records"),
         "purpose_sample_size": purpose_sample_sizes.to_dict(orient="records"),
         "prevalence_standardization": prevalence_standardization.to_dict(orient="records"),
+        "sampling_design": sampling_design.to_dict(orient="records"),
         "catalog_representation": catalog_representation.to_dict(orient="records"),
         "specialty_comparison": specialty_comparison.to_dict(orient="records"),
         "clinical_atlas": {
             "main_rows": int(len(clinical_atlas)),
             "main_observed_rows": int(clinical_atlas["row_type"].eq("Observed").sum()),
-            "illustrative_rows": int(len(illustrative_atlas)),
+            "prevalence_experiment_rows": int(len(prevalence_experiment)),
+            "same_youden_experiment_rows": int(len(youden_experiment)),
             "supplemental_empirical_rows": int(len(supplemental_atlas)),
         },
         "audit": {
@@ -1864,14 +2126,16 @@ def main(source: Path = SOURCE) -> None:
                 f"Median entropy reduction was {summary['descriptive']['entropy_reduction_bits']['median']:.3f} bits (IQR {summary['descriptive']['entropy_reduction_bits']['q1']:.3f}-{summary['descriptive']['entropy_reduction_bits']['q3']:.3f}).",
                 f"Median proportional uncertainty removed was {summary['descriptive']['entropy_removed_percent']['median']:.1f}% (IQR {summary['descriptive']['entropy_removed_percent']['q1']:.1f}%-{summary['descriptive']['entropy_removed_percent']['q3']:.1f}%).",
                 f"The 95% confidence interval for median proportional uncertainty removed was {headline_uncertainty.iloc[1]['ci_low']:.1f}%-{headline_uncertainty.iloc[1]['ci_high']:.1f}%, estimated by resampling calculators and keeping repeated evaluations together.",
-                f"Information was positive-result dominant in {summary['information_contributions']['positive_result_dominant']} evaluations, negative-result dominant in {summary['information_contributions']['negative_result_dominant']}, and balanced in {summary['information_contributions']['balanced']}.",
+                f"One classification supplied more than 60% of average information in {summary['information_contributions']['positive_result_dominant'] + summary['information_contributions']['negative_result_dominant']} evaluations; {summary['information_contributions']['positive_result_dominant']} were positive-result dominant, {summary['information_contributions']['negative_result_dominant']} negative-result dominant, and {summary['information_contributions']['balanced']} balanced.",
+                f"Among {summary['information_contributions']['rule_out_evaluations']} rule-out evaluations, the median negative-result information share was {summary['information_contributions']['rule_out_median_negative_share_percent']:.1f}% (95% confidence interval {summary['information_contributions']['rule_out_median_negative_share_ci_low']:.1f}%-{summary['information_contributions']['rule_out_median_negative_share_ci_high']:.1f}%).",
                 f"Median proportional uncertainty removed declined from {summary['sample_size']['smallest_quartile_median_percent']:.1f}% in the smallest-study quartile to {summary['sample_size']['largest_quartile_median_percent']:.1f}% in the largest-study quartile.",
                 f"After Miller–Madow correction, median information gain was {summary['sample_size']['median_mm_bits']:.3f} bits and median proportional uncertainty removed was {summary['sample_size']['median_mm_percent']:.1f}%.",
                 f"The corrected study-size correlation was {study_size_bias_robustness.iloc[3]['estimate']:.3f}; after adjustment for baseline uncertainty it was {study_size_bias_robustness.iloc[4]['estimate']:.3f}, and at fixed 10% prevalence it was {study_size_bias_robustness.iloc[5]['estimate']:.3f}.",
                 f"Across {len(specialty_comparison)} specialty labels represented by at least 50 evaluations, median proportional uncertainty removed ranged from {specialty_comparison['median_removed_percent'].min():.1f}% to {specialty_comparison['median_removed_percent'].max():.1f}%.",
+                f"Excluding {int(primary['sampling_design'].eq('Case-control/two-gate').sum())} evaluations explicitly described as case-control or two-gate left a median information gain of {sensitivities.iloc[-1]['median_bits']:.3f} bits and {sensitivities.iloc[-1]['median_percent']:.1f}% of baseline uncertainty removed.",
                 "",
                 "One source count was corrected with a DOI-linked audit note; no included record retained a sample-size discrepancy greater than 1.",
-                "Spearman correlation is primary because both entropy outcomes failed the Shapiro-Wilk normality check.",
+                "Spearman correlations are primary for monotonic associations with less sensitivity to extreme values; Pearson correlations are secondary.",
                 "Conventional P values are omitted because the study is descriptive; confidence intervals resample calculators and keep repeated evaluations together.",
                 "",
             ]
@@ -1880,9 +2144,35 @@ def main(source: Path = SOURCE) -> None:
     )
     make_figures(primary, flow, catalog_representation, specialty_comparison, figure_dir)
 
+    expected_figure_stems = (
+        "graphical_abstract",
+        "figure1_selection_flow",
+        "figure2_information_yield_distribution",
+        "figure3_result_information_contributions",
+        "figure4_prevalence_information_yield",
+        "figureS1_sample_size_information_yield",
+        "figureS2_youden_information_relationship",
+        "figureS3_prevalence_standardization",
+        "figureS4_catalog_representation_by_purpose",
+        "figureS5_specialty_information_yield",
+    )
+    assert all(
+        (figure_dir / f"{stem}{suffix}.{extension}").is_file()
+        for stem in expected_figure_stems
+        for suffix in ("", "_grayscale")
+        for extension in ("pdf", "svg", "png")
+    )
+
     assert len(complete) == 494
     assert flow["catalog_calculators"] == 847
     assert flow["off_catalog_calculators"] == 4
+    assert primary["evidence_group"].value_counts().to_dict() == {
+        "Count-based": 331,
+        "Legacy/no recorded source": 68,
+        "Reported sensitivity/specificity": 64,
+        "Metric-reconstructed": 19,
+    }
+    assert primary["confidence_group"].isin(["High", "Moderate-high"]).sum() == 187
     assert primary["entropy_reduction_bits"].notna().all()
     assert primary["entropy_removed_percent"].between(0, 100 + 1e-9).all()
     assert primary["entropy_reduction_bits"].ge(-1e-10).all()
@@ -1893,9 +2183,12 @@ def main(source: Path = SOURCE) -> None:
     )
     assert primary["positive_information_share_percent"].between(0, 100).all()
     assert primary["information_contribution_pattern"].value_counts().sum() == len(primary)
+    assert primary["information_contribution_pattern"].ne("Balanced").sum() == 329
     assert weighted_median(np.array([1.0, 2.0]), np.array([1, 1])) == 1.5
     assert weighted_median(np.array([1.0, 2.0]), np.array([2, 1])) == 1.0
-    assert len(headline_uncertainty) == 5
+    assert len(headline_uncertainty) == 6
+    assert len(rule_out_information) == 56
+    assert rule_out_ci[0] <= rule_out_information["negative_information_share_percent"].median() <= rule_out_ci[1]
     assert len(purpose_sample_sizes) == 4
     assert len(prevalence_standardization) == 4
     assert len(study_size_bias_robustness) == 10
@@ -1903,7 +2196,11 @@ def main(source: Path = SOURCE) -> None:
     assert len(catalog_representation) == 4
     assert len(specialty_comparison) == 14
     assert len(clinical_atlas) == 7
-    assert len(illustrative_atlas) == 2
+    assert len(evidence_audit) == 8
+    assert sampling_design["evaluations"].sum() == len(primary)
+    assert len(sensitivities) == 7
+    assert len(prevalence_experiment) == 2
+    assert len(youden_experiment) == 3
     assert len(supplemental_atlas) == 24
     assert len(clinical_atlas_ledger) == 24
     assert specialty_comparison["evaluations"].ge(50).all()
