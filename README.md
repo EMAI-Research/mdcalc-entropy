@@ -1,9 +1,10 @@
 # MDCalc entropy analysis
 
-Public analysis code and de-identified aggregate data for the manuscript **“What does a clinical calculator result mean? Cross sectional analysis of the MDCalc catalogue.”**
+Public analysis code and de-identified aggregate data for the manuscript **“Meaning of clinical calculator results: a cross-sectional analysis of the MDCalc catalogue.”**
 
-- Code release: `0.2.0`
-- Manuscript analysis: BMJ `0.14.3`
+- Code release: `0.3.0`
+- Journal submission: BMJ Evidence-Based Medicine, `bmjebm-2026-115053`
+- Scientific analysis: frozen BMJ `0.14.3` analysis retained in EBM submission package `0.1.5`
 - Data freeze: 11 August 2026
 - Python: 3.12
 
@@ -46,3 +47,9 @@ The program accepts only the workbook with SHA-256 `02348f2e95039be35943e135d27b
 - `MANIFEST.json`: file sizes and SHA-256 hashes for the release.
 
 The unit of analysis is one calculator-study-outcome-threshold evaluation. The files do not rank calculators, and the results are research outputs rather than clinical decision support. See `LICENSE.md` and `LICENSING_STATUS.md` for the scoped code and data licences.
+
+## Archival deposit
+
+Zenodo deposit metadata are in `.zenodo.json`; the deposit record is in `docs/zenodo-deposit.md`. No Zenodo DOI has been issued for this release yet. The dataset DOI will be separate from the medRxiv preprint DOI.
+
+The four CSV datasets match the submitted reproducibility archive row for row. Code and data remain unchanged from public release 0.2.0; release 0.3.0 updates the manuscript title, author metadata and archival documentation.

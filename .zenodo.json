@@ -1,0 +1,95 @@
+{
+  "title": "Meaning of clinical calculator results: a cross-sectional analysis of the MDCalc catalogue — data and code",
+  "upload_type": "dataset",
+  "description": "<p>Frozen aggregate analytic datasets and analysis code supporting Meaning of clinical calculator results: a cross-sectional analysis of the MDCalc catalogue, submitted to BMJ Evidence-Based Medicine (bmjebm-2026-115053).</p><p>The 11 August 2026 data freeze contains 482 primary evaluations representing 407 calculators in a catalogue of 847 calculators. Includes extracted numerical inputs, cleaned primary and expanded datasets, a row-level audit, source citations, analysis scripts, result summaries, a data dictionary and file checksums.</p><p>The four CSV datasets match the submitted reproducibility archive. The original extraction workbook contains third-party text and is excluded from this public release. Reproduction from the included derived data is supported; reconstruction from the original workbook additionally requires that excluded input. These are aggregate study-level data, not patient-level records.</p><p>First-party data and documentation: CC BY 4.0. Original software: MIT. Third-party material retains its original terms. See LICENSE.md for scope. Code release 0.3.0 preserves the submitted scientific data and calculations.</p>",
+  "creators": [
+    {
+      "name": "He, Shuhan",
+      "affiliation": "Division of AI, Department of Emergency Medicine, Massachusetts General Hospital, Mass General Brigham, Boston, Massachusetts, USA",
+      "orcid": "0000-0002-9902-5077"
+    },
+    {
+      "name": "Joseph, Joshua W.",
+      "affiliation": "Division of AI, Department of Emergency Medicine, Massachusetts General Hospital, Mass General Brigham, Boston, Massachusetts, USA",
+      "orcid": "0000-0001-9704-6635"
+    },
+    {
+      "name": "Safari, Pedram",
+      "affiliation": "Master of Science in Healthcare Data Analytics, Department of Health Sciences, School of Health and Rehabilitation Sciences, Mass General Brigham University of Health Professions, Boston, Massachusetts, USA",
+      "orcid": "0000-0002-0786-1415"
+    },
+    {
+      "name": "Akomeh, Natasha",
+      "affiliation": "Master of Science in Healthcare Data Analytics, Department of Health Sciences, School of Health and Rehabilitation Sciences, Mass General Brigham University of Health Professions, Boston, Massachusetts, USA"
+    },
+    {
+      "name": "Goff, Allison",
+      "affiliation": "Master of Science in Healthcare Data Analytics, Department of Health Sciences, School of Health and Rehabilitation Sciences, Mass General Brigham University of Health Professions, Boston, Massachusetts, USA",
+      "orcid": "0000-0002-1557-618X"
+    },
+    {
+      "name": "Slusarz, Pawel Jan",
+      "affiliation": "Master of Science in Healthcare Data Analytics, Department of Health Sciences, School of Health and Rehabilitation Sciences, Mass General Brigham University of Health Professions, Boston, Massachusetts, USA",
+      "orcid": "0009-0003-3895-4205"
+    },
+    {
+      "name": "Mohamed, Amal",
+      "affiliation": "Division of AI, Department of Emergency Medicine, Massachusetts General Hospital, Mass General Brigham, Boston, Massachusetts, USA",
+      "orcid": "0009-0006-0281-8625"
+    },
+    {
+      "name": "Lord, Spencer",
+      "affiliation": "Department of Surgery, Massachusetts General Hospital, Mass General Brigham, Boston, Massachusetts, USA",
+      "orcid": "0000-0001-7796-9387"
+    },
+    {
+      "name": "Goldstein, Joshua N.",
+      "affiliation": "Department of Emergency Medicine, Massachusetts General Hospital, Mass General Brigham, Boston, Massachusetts, USA",
+      "orcid": "0000-0002-6406-1828"
+    },
+    {
+      "name": "Raja, Ali S.",
+      "affiliation": "Department of Emergency Medicine, Massachusetts General Hospital, Mass General Brigham, Boston, Massachusetts, USA",
+      "orcid": "0000-0002-8909-3586"
+    },
+    {
+      "name": "Kabrhel, Christopher",
+      "affiliation": "Department of Emergency Medicine, Massachusetts General Hospital, Mass General Brigham, Boston, Massachusetts, USA; Department of Emergency Medicine, Harvard Medical School, Boston, Massachusetts, USA",
+      "orcid": "0000-0002-8699-7176"
+    },
+    {
+      "name": "Locke, Brian W.",
+      "affiliation": "Division of Respiratory, Critical Care, and Occupational Pulmonary Medicine, Department of Internal Medicine, Spencer Fox Eccles School of Medicine at the University of Utah, Salt Lake City, Utah, USA; Department of Pulmonary and Critical Care, Intermountain Medical Center, Intermountain Health, Murray, Utah, USA",
+      "orcid": "0000-0002-3588-5238"
+    },
+    {
+      "name": "Rohlfsen, Cory",
+      "affiliation": "Division of General Internal Medicine, Department of Internal Medicine, College of Medicine, University of Nebraska Medical Center, Omaha, Nebraska, USA",
+      "orcid": "0000-0002-4118-5174"
+    },
+    {
+      "name": "Liebovitz, David M.",
+      "affiliation": "Departments of Medicine and Preventive Medicine, Feinberg School of Medicine, Northwestern University, Chicago, Illinois, USA",
+      "orcid": "0000-0002-2518-5940"
+    }
+  ],
+  "version": "0.3.0",
+  "access_right": "open",
+  "license": "cc-by-4.0",
+  "keywords": [
+    "clinical calculators",
+    "diagnostic accuracy",
+    "Shannon entropy",
+    "evidence-based medicine",
+    "MDCalc",
+    "reproducibility"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/EMAI-Research/mdcalc-entropy/tree/v0.3.0",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ],
+  "notes": "BMJ Evidence-Based Medicine submission ID: bmjebm-2026-115053. medRxiv deposit ID: MEDRXIV/2026/362556; preprint DOI pending at package preparation. Funding: National Academy of Medicine, award 2026A008797."
+}
